@@ -1,0 +1,10 @@
+{
+  "latestErrorEvent": {
+    "code": "TYPE-001",
+    "message": "Failed to generate type declaration. Execute the below cmd to reproduce and fix the error. #TYPE-001\nargs: {\"cmd\":\"npx tsc --project /home/innxt-pc/Desktop/chat-mini-app/node_modules/.federation/tsconfig.21518796b6ad63cb37e1fe721327889f.json\"}\nView the docs to see how to solve: https://module-federation.io/guide/troubleshooting/type#type-001",
+    "args": {
+      "cmd": "npx tsc --project /home/innxt-pc/Desktop/chat-mini-app/node_modules/.federation/tsconfig.21518796b6ad63cb37e1fe721327889f.json"
+    },
+    "timestamp": 1784020613598
+  }
+}
