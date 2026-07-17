@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useContext, createContext } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, Bot, User, Sparkles, X } from "lucide-react";
 import "./index.css";
 
@@ -11,102 +11,24 @@ interface Message {
   timestamp: Date;
 }
 
-function getSdk(id: string) {
-  return window.getMiniAppBridge?.()?.getInstance(id) ?? null;
-}
-
-interface SdkContextValue {
-  sdk: any | null;
-  user: any | null;
-  isReady: boolean;
-  error: Error | null;
-}
-
-const SdkContext = createContext<SdkContextValue>({
-  sdk: null,
-  user: null,
-  isReady: false,
-  error: null,
-});
-
-function PlatformSdkProvider({
-  moduleId,
-  children,
-}: {
-  moduleId: string;
-  children: React.ReactNode;
-}) {
-  const [sdk, setSdk] = useState<any | null>(null);
-  const [user, setUser] = useState<any | null>(null);
-  const [isReady, setIsReady] = useState(false);
+function useBridgeServices() {
+  const [services, setServices] = useState<any>(null);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    const tryGetSdk = async () => {
-      for (let attempt = 0; attempt < 10; attempt++) {
-        if (cancelled) return;
-        const instance = getSdk(moduleId);
-        if (instance) {
-          try {
-            const u = await instance.auth.getUser();
-            if (cancelled) return;
-            setSdk(instance);
-            setUser(u);
-            setIsReady(true);
-            return;
-          } catch {
-            if (cancelled) return;
-            await new Promise((r) => setTimeout(r, 200));
-            continue;
-          }
-        }
-        await new Promise((r) => setTimeout(r, 200));
-      }
-      if (!cancelled) {
-        setError(
-          new Error(`SDK not injected for module "${moduleId}" after retries.`),
-        );
-      }
-    };
-    tryGetSdk();
-    return () => {
-      cancelled = true;
-    };
-  }, [moduleId]);
+    const bridge = (window as any).__GOV_PLATFORM_BRIDGE__;
+    if (bridge?.getServices) {
+      setServices(bridge.getServices(MODULE_ID));
+    } else {
+      setError(new Error("Platform bridge not available"));
+    }
+  }, []);
 
-  if (error) {
-    return (
-      <div style={{ padding: 24, textAlign: "center", color: "white" }}>
-        <p>Failed to connect to platform shell.</p>
-        <p style={{ fontSize: 12, color: "#999" }}>{error.message}</p>
-      </div>
-    );
-  }
-  if (!isReady)
-    return (
-      <div style={{ padding: 24, textAlign: "center", color: "white" }}>
-        Connecting to platform...
-      </div>
-    );
-
-  return (
-    <SdkContext.Provider value={{ sdk, user, isReady, error }}>
-      {children}
-    </SdkContext.Provider>
-  );
-}
-
-function usePlatformSdk() {
-  const { sdk } = useContext(SdkContext);
-  if (!sdk)
-    throw new Error("usePlatformSdk must be used within PlatformSdkProvider");
-  return sdk;
+  return { services, error };
 }
 
 function App() {
-  const sdk = usePlatformSdk(); // <-- the real context SDK
-
+  const { services, error } = useBridgeServices();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -130,12 +52,9 @@ function App() {
     if (isChatOpen) setTimeout(() => inputRef.current?.focus(), 300);
   }, [isChatOpen]);
 
-  // ------------------------------------------------------------------
-  // handleSend — wired to the real SDK stream, not the mock
-  // ------------------------------------------------------------------
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading || !services) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -148,7 +67,6 @@ function App() {
     setInput("");
     setIsLoading(true);
 
-    // Placeholder so the user sees a message slot while streaming
     const aiMsgId = crypto.randomUUID();
     setMessages((prev) => [
       ...prev,
@@ -156,13 +74,11 @@ function App() {
     ]);
 
     try {
-      // 1. Ask the shell communicator → /api/chat → Gemini
-      const result = await sdk.chat.chat(
+      const result = await services.chat.chat(
         [{ role: "user", content: trimmed }],
         {},
       );
 
-      // 2. Accumulate and typewriter-update the AI bubble
       let full = "";
       let pending = "";
       let rafId: number | null = null;
@@ -210,7 +126,23 @@ function App() {
     }
   };
 
-  // ------------------------------------------------------------------
+  if (error) {
+    return (
+      <div style={{ padding: 24, textAlign: "center", color: "white" }}>
+        <p>Failed to connect to platform shell.</p>
+        <p style={{ fontSize: 12, color: "#999" }}>{error.message}</p>
+      </div>
+    );
+  }
+
+  if (!services) {
+    return (
+      <div style={{ padding: 24, textAlign: "center", color: "white" }}>
+        Connecting to platform...
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-linear-to-br from-gray-950 via-slate-900 to-indigo-950">
       {/* Decorative background */}
@@ -321,7 +253,6 @@ function App() {
                       {msg.content ? (
                         <>
                           {msg.content}
-                          {/* Show an active streaming cursor if this is the last AI message and loading is true */}
                           {isLoading &&
                             msg.role === "ai" &&
                             msg.id === messages[messages.length - 1].id && (
@@ -329,7 +260,6 @@ function App() {
                             )}
                         </>
                       ) : (
-                        /* Pulsing bubble placeholder before chunks arrive */
                         <span className="inline-block w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                       )}
                     </div>
@@ -344,10 +274,6 @@ function App() {
                   </div>
                 </div>
               ))}
-
-              {/* The jumping dots container below can be removed or left as is. 
-      To keep the streaming smooth, we rely on the pulsing cursor added above, 
-      but keeping this safe fallback ensures no layouts shift. */}
               {isLoading && messages[messages.length - 1]?.content === "" && (
                 <div className="flex items-end gap-3 animate-fade-in">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-indigo-500/20 to-purple-600/20 ring-1 ring-indigo-500/30">
@@ -376,7 +302,6 @@ function App() {
               )}
               <div ref={messagesEndRef} />
             </div>
-            /* Input */
             <div className="shrink-0 border-t border-gray-800/60 px-4 py-3 sm:px-5 sm:py-4">
               <div className="flex items-center gap-2 rounded-xl bg-gray-800/60 pl-4 pr-1.5 ring-1 ring-gray-700/50 focus-within:ring-2 focus-within:ring-indigo-500/50">
                 <input
@@ -405,11 +330,4 @@ function App() {
   );
 }
 
-// ── Entry point: wrap in PlatformSdkProvider ─────────────────────
-export default function Root() {
-  return (
-    <PlatformSdkProvider moduleId={MODULE_ID}>
-      <App />
-    </PlatformSdkProvider>
-  );
-}
+export default App;
