@@ -18,7 +18,7 @@ export default defineConfig({
       entry: "./src/main.tsx",
       name: "ChatMiniApp",
       formats: ["es"],
-      fileName: () => "index.js",
+      fileName: () => "[name]-[hash].js",
     },
     rollupOptions: {
       output: {
@@ -30,7 +30,7 @@ export default defineConfig({
           "react-dom": "window.ReactDOM",
         },
         chunkFileNames: "assets/[name]-[hash].js",
-        assetFileNames: "assets/[name][extname]",
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
       external: ["react", "react-dom", "react/jsx-runtime"],
     },
