@@ -72,6 +72,7 @@ interface GovSdkInstance {
   readonly version: string;
   readonly traceId: string;
   auth: GovSdkAuth;
+  chat: GovSdkChat;
   http: GovSdkHttp;
   platform: GovSdkPlatform;
   destroy(): void;
