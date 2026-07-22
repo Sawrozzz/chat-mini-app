@@ -1,7 +1,7 @@
 {
-  "name": "remote-app",
+  "name": "sawroz/chat-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3009",
