@@ -42,7 +42,7 @@ function addFrameworkToManifest(frameworkName: string): Plugin {
 export default defineConfig({
   plugins: [
     react({
-      jsxRuntime: "classic",
+      jsxRuntime: 'automatic',
     }),
     tailwindcss(),
     addFrameworkToManifest("react"), 
