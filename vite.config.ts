@@ -9,30 +9,27 @@ export default defineConfig({
     }),
     tailwindcss(),
   ],
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     target: "chrome89",
-    manifest: 'manifest.json',
+    manifest: "manifest.json",
     outDir: "dist",
     cssCodeSplit: true,
     lib: {
       entry: "./src/main.tsx",
       name: "ChatMiniApp",
       formats: ["es"],
-      fileName: () => "[name]-[hash].js",
+      fileName: () => "[name][hash].js",
     },
     rollupOptions: {
       output: {
         inlineDynamicImports: false,
         format: "es",
-
-        globals: {
-          react: "window.React",
-          "react-dom": "window.ReactDOM",
-        },
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },
-      external: ["react", "react-dom", "react/jsx-runtime"],
     },
   },
   server: {

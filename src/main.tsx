@@ -1,12 +1,13 @@
+import {createRoot} from "react-dom/client"
 import "./index.css";
 import App from "./App.tsx";
 
-// Make the component available for the shell to load via window
-declare global {
-  interface Window {
-    __MINIAPP_APP__?: typeof App;
-  }
+export function mount(container: HTMLElement){
+  const root = createRoot(container);
+  root.render(<App />);
+  (container as any).__root = root;
 }
-window.__MINIAPP_APP__ = App;
 
-export { App };
+export function unmount(container: HTMLElement) {
+  (container as any).__root?.unmount()
+}

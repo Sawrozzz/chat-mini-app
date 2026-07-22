@@ -192,12 +192,28 @@ function App() {
           `chunk #${chunkCount}:`,
           JSON.stringify(text).slice(0, 100),
         );
-        accumulated += text;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId ? { ...m, content: accumulated } : m,
-          ),
-        );
+
+        // Typewriter effect: type each chunk character by character
+        let charIndex = 0;
+        const chunkChars = text.split("");
+        await new Promise<void>((resolve) => {
+          const typeChar = () => {
+            if (charIndex < chunkChars.length) {
+              accumulated += chunkChars[charIndex];
+              charIndex++;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId ? { ...m, content: accumulated } : m,
+                ),
+              );
+              // 15ms per character for a smooth typewriter feel
+              setTimeout(typeChar, 15);
+            } else {
+              resolve();
+            }
+          };
+          typeChar();
+        });
       }
       console.log(
         "iterate() done. total chunks:",
