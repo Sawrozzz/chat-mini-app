@@ -1,6 +1,5 @@
 {
-  "name": "sawroz/chat-app",
-  "private": true,
+  "name": "sawroz-chat-app",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
