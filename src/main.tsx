@@ -11,3 +11,13 @@ export function mount(container: HTMLElement){
 export function unmount(container: HTMLElement) {
   (container as any).__root?.unmount()
 }
+
+
+declare global {
+  interface Window {
+    __MINIAPP_APP__?: typeof App;
+  }
+}
+window.__MINIAPP_APP__ = App;
+
+export { App };
