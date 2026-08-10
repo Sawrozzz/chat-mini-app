@@ -1,22 +1,18 @@
-import { createRoot } from "react-dom/client";
-import "./index.css";
+import { createRoot, type Root } from "react-dom/client";
 import App from "./App.tsx";
+import "./index.css";
 
-export function mount(container: HTMLElement) {
-  const root = createRoot(container);
-  root.render(<App />);
-  (container as any).__root = root;
+export function mount(
+  container: HTMLElement,
+  runtime?: { initialPath?: string },
+) {
+  const root: Root = createRoot(container);
+  root.render(<App initialPath={runtime?.initialPath} />);
+
+  return {
+    unmount() {
+      root.unmount();
+
+    },
+  };
 }
-
-export function unmount(container: HTMLElement) {
-  (container as any).__root?.unmount();
-}
-
-declare global {
-  interface Window {
-    __MINIAPP_APP__?: typeof App;
-  }
-}
-window.__MINIAPP_APP__ = App;
-
-export { App };
