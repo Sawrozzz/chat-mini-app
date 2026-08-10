@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { Bot, MessageCircle, Send, Sparkles, User, X } from "lucide-react";
 import { useAppearance } from "../../hooks/useAppearance"
@@ -9,7 +8,7 @@ import { usePlatformSDK } from "../../hooks/usePlatformSDK"
 
 interface Message {
   id: string;
-  role: "user" | "system";
+  role: "user" | "ai";
   content: string;
   timestamp?: Date;
 }
@@ -22,6 +21,25 @@ export default function TestMiniApp() {
   )
 }
 
+function TypingIndicator({ isDark }: { isDark: boolean }) {
+  return (
+    <span className="flex items-center gap-2 py-0.5">
+      <span className="flex items-center gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={`h-1.5 w-1.5 animate-typing-bounce rounded-full ${isDark ? "bg-neutral-400" : "bg-neutral-500"}`}
+            style={{ animationDelay: `${i * 160}ms` }}
+          />
+        ))}
+      </span>
+      <span className={`text-xs font-medium ${isDark ? "text-neutral-500" : "text-neutral-500"}`}>
+        Thinking
+      </span>
+    </span>
+  );
+}
+
 function ChatApp() {
 
   const { sdk } = usePlatformSDK();
@@ -31,7 +49,7 @@ function ChatApp() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
-      role: "user",
+      role: "ai",
       content:
         "Hello! I'm your intelligent assistant. Feel free to ask me anything.",
       timestamp: new Date(),
@@ -69,7 +87,7 @@ function ChatApp() {
 
     setMessages((prev) => [
       ...prev,
-      { id: aiMsgId, role: "user", content: "", timestamp: new Date() },
+      { id: aiMsgId, role: "ai", content: "", timestamp: new Date() },
     ]);
 
     try {
@@ -83,13 +101,11 @@ function ChatApp() {
           : (result as unknown as AsyncIterable<string | Uint8Array>);
 
       let accumulated = "";
-      let chunkCount = 0;
       for await (const chunk of stream) {
-        chunkCount++;
         const text =
           typeof chunk === "string"
             ? chunk
-            : new TextDecoder().decode(chunk as any);
+            : new TextDecoder().decode(chunk as Uint8Array);
 
         // Typewriter effect: type each chunk character by character
         let charIndex = 0;
@@ -136,37 +152,44 @@ function ChatApp() {
 
   const isDark = theme.mode === 'dark';
 
+  const lastMessage = messages[messages.length - 1];
+
   // ------------------------------------------------------------------
   return (
-    <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-linear-to-br from-gray-950 via-slate-900 to-indigo-950">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
-        <div className="absolute left-1/3 top-1/2 h-64 w-64 rounded-full bg-indigo-400/5 blur-3xl" />
-      </div>
+    <div className={`relative flex min-h-dvh w-full items-center justify-center overflow-hidden transition-colors duration-300 ${isDark ? "bg-neutral-950" : "bg-neutral-100"}`}>
 
       {/* Landing page */}
       <div className="relative z-10 flex flex-col items-center gap-4 px-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-indigo-400 to-purple-600 shadow-2xl shadow-indigo-500/30">
-          <Sparkles className="h-8 w-8 text-white" />
+        <div className={`flex h-16 w-16 items-center justify-center rounded-2xl ${isDark ? "bg-neutral-900 text-neutral-100" : "bg-white text-neutral-900"} shadow-lg ${isDark ? "shadow-black/40" : "shadow-neutral-900/5"}`}>
+          <Sparkles className="h-7 w-7" />
         </div>
-        <h1 className={`bg-linear-to-r bg-clip-text text-4xl font-bold text-transparent sm:text-5xl ${isDark ? "from-white via-indigo-200 to-purple-200" : "from-gray-900 via-indigo-600 to-purple-600"}`} > Welcome </h1>
-        <p className={`max-w-md text-sm leading-relaxed sm:text-base ${isDark ? "text-gray-400" : "text-gray-600"}`} >
+        <h1 className={`text-4xl font-semibold tracking-tight sm:text-5xl ${isDark ? "text-neutral-100" : "text-neutral-900"}`} > Welcome </h1>
+        <p className={`max-w-md text-sm leading-relaxed sm:text-base ${isDark ? "text-neutral-400" : "text-neutral-500"}`} >
           Need help or have a question? Click the button below to start a
           conversation with your AI assistant.
         </p>
+        <div className={`mt-1 flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium ring-1 ${isDark
+          ? "bg-neutral-900/60 text-neutral-400 ring-neutral-800"
+          : "bg-white text-neutral-500 ring-neutral-200 shadow-sm shadow-neutral-900/5"}`}>
+          <MessageCircle className="h-3.5 w-3.5" />
+          Tap the button to chat with AI
+        </div>
       </div>
+
+      {/* FAB */}
       <div
         className="fixed bottom-6 right-6 z-40 flex items-center gap-3 sm:bottom-8 sm:right-8"
         onMouseEnter={() => setIsFabHovered(true)}
         onMouseLeave={() => setIsFabHovered(false)}
       >
-        <span className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all duration-300 ease-out ${isDark ? "bg-gray-900/80 text-gray-300" : "bg-white/90 text-gray-700 shadow-gray-300/40 ring-1 ring-gray-200"} ${isFabHovered ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-4 opacity-0"}`} > Ask AI </span>
+        <span className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all duration-300 ease-out ${isDark ? "bg-neutral-800 text-neutral-200" : "bg-white text-neutral-700 shadow-neutral-900/10 ring-1 ring-neutral-200"} ${isFabHovered ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-4 opacity-0"}`} > Ask AI </span>
         <button
           onClick={() => setIsChatOpen(true)}
-          className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-br from-indigo-500 to-purple-600 text-white shadow-2xl shadow-indigo-500/30 transition-all duration-300 hover:scale-110 hover:shadow-indigo-500/50 active:scale-95 sm:h-16 sm:w-16"
+          aria-label="Open AI chat"
+          className={`group relative flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 sm:h-16 sm:w-16 ${isDark
+            ? "bg-white text-neutral-900 shadow-black/30 hover:shadow-black/50"
+            : "bg-neutral-900 text-white shadow-neutral-900/25 hover:shadow-neutral-900/40"}`}
         >
-          <div className="absolute inset-0 rounded-full bg-linear-to-br from-indigo-400 to-purple-500 opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-60" />
           <MessageCircle className="relative h-6 w-6 sm:h-7 sm:w-7" />
         </button>
       </div>
@@ -174,81 +197,91 @@ function ChatApp() {
       {isChatOpen && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsChatOpen(false)}
           />
           <div
-            className="fixed bottom-0 right-0 z-50 flex flex-col overflow-hidden bg-gray-900/80 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all sm:bottom-6 sm:right-6 sm:rounded-2xl sm:border sm:border-gray-800/60"
+            className={`fixed bottom-0 right-0 z-50 flex flex-col overflow-hidden shadow-2xl backdrop-blur-xl transition-all sm:bottom-6 sm:right-6 sm:rounded-2xl sm:border ${isDark
+              ? "border-neutral-800 bg-neutral-900 shadow-black/60"
+              : "border-neutral-200 bg-white shadow-neutral-900/10"}`}
             style={{ width: "min(100vw, 400px)", height: "min(100dvh, 560px)" }}
           >
-            <header className="flex shrink-0 items-center justify-between border-b border-gray-800/60 px-5 py-4">
+            {/* Header */}
+            <header className={`flex shrink-0 items-center justify-between border-b px-5 py-4 ${isDark ? "border-neutral-800" : "border-neutral-200"}`}>
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-                  <Sparkles className="h-5 w-5 text-white" />
+                <div className={`relative flex h-10 w-10 items-center justify-center rounded-xl ${isDark
+                  ? "bg-neutral-800 text-neutral-100"
+                  : "bg-neutral-100 text-neutral-900"}`}>
+                  <Sparkles className="h-5 w-5" />
+                  <span className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full ring-2 ${isDark ? "ring-neutral-900" : "ring-white"} ${isLoading ? "animate-pulse bg-amber-500" : "bg-emerald-500"}`} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-white">
+                  <h2 className={`text-sm font-semibold ${isDark ? "text-neutral-100" : "text-neutral-900"}`}>
                     AI Assistant
                   </h2>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-sm" />
-                    <span className="text-xs text-gray-400">Online</span>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isLoading ? "animate-pulse bg-amber-500" : "bg-emerald-500"}`} />
+                    <span className={`text-xs ${isDark ? "text-neutral-500" : "text-neutral-500"}`}>
+                      {isLoading ? "Thinking..." : "Online"}
+                    </span>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setIsChatOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-200"
+                aria-label="Close chat"
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${isDark
+                  ? "bg-neutral-800/60 text-neutral-400 hover:bg-neutral-700/60 hover:text-neutral-100"
+                  : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900"}`}
               >
                 <X className="h-4 w-4" />
               </button>
             </header>
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 scroll-smooth">
-              {messages.map((msg: any) => (
+
+            {/* Messages */}
+            <div className="chat-scroll flex-1 space-y-5 overflow-y-auto px-5 py-5 scroll-smooth">
+              {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex items-end gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"} animate-fade-in`}
+                  className={`flex items-end gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"} animate-fade-in`}
                 >
-                  {msg.role === "ai" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-indigo-500/20 to-purple-600/20 ring-1 ring-indigo-500/30">
-                      <Bot className="h-4 w-4 text-indigo-400" />
+                  {msg.role === "ai" ? (
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isDark
+                      ? "bg-neutral-800 text-neutral-400"
+                      : "bg-neutral-200 text-neutral-500"}`}>
+                      <Bot className="h-4 w-4" />
                     </div>
-                  )}
-                  {msg.role === "user" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-indigo-500 to-purple-600 shadow-md shadow-indigo-500/20">
-                      <User className="h-4 w-4 text-white" />
+                  ) : (
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isDark
+                      ? "bg-white text-neutral-900"
+                      : "bg-neutral-900 text-white"}`}>
+                      <User className="h-4 w-4" />
                     </div>
                   )}
                   <div className="group max-w-[80%]">
                     <div
-                      className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap ai-content ${msg.role === "user"
-                          ? "bg-linear-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20"
-                          : "bg-gray-800/90 text-gray-100 shadow-sm"
+                      className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === "user"
+                        ? `rounded-br-md ${isDark ? "bg-white text-neutral-900" : "bg-neutral-900 text-white"}`
+                        : `rounded-bl-md ${isDark ? "bg-neutral-800 text-neutral-100" : "bg-neutral-100 text-neutral-900"}`
                         }`}
-                      style={{
-                        borderRadius:
-                          msg.role === "user"
-                            ? "18px 18px 4px 18px"
-                            : "18px 18px 18px 4px",
-                      }}
                     >
-                      {msg.content ? (
+                      {isLoading && msg.role === "ai" && msg.content === "" && msg.id === lastMessage?.id ? (
+                        <TypingIndicator isDark={isDark} />
+                      ) : (
                         <>
                           {msg.content}
                           {isLoading &&
                             msg.role === "ai" &&
-                            msg.id === messages[messages.length - 1]?.id && (
-                              <span className="inline-block w-1.5 h-4 ml-1 translate-y-0.5 bg-indigo-400 animate-pulse rounded-xs" />
+                            msg.id === lastMessage?.id && (
+                              <span className={`ml-0.5 inline-block h-4 w-[2px] animate-blink align-middle ${isDark ? "bg-neutral-100" : "bg-neutral-900"}`} />
                             )}
                         </>
-                      ) : (
-                        <span className="inline-block w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                       )}
                     </div>
                     <p
-                      className={`mt-1 text-[10px] text-gray-500 ${msg.role === "user" ? "text-right" : "text-left"}`}
+                      className={`mt-1 text-[10px] ${msg.role === "user" ? "text-right" : "text-left"} ${isDark ? "text-neutral-500" : "text-neutral-400"}`}
                     >
-                      {msg.timestamp.toLocaleTimeString([], {
+                      {msg.timestamp?.toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
@@ -258,8 +291,12 @@ function ChatApp() {
               ))}
               <div ref={messagesEndRef} />
             </div>
-            <div className="shrink-0 border-t border-gray-800/60 px-4 py-3 sm:px-5 sm:py-4">
-              <div className="flex items-center gap-2 rounded-xl bg-gray-800/60 pl-4 pr-1.5 ring-1 ring-gray-700/50 focus-within:ring-2 focus-within:ring-indigo-500/50">
+
+            {/* Input */}
+            <div className={`shrink-0 border-t px-4 pb-3 pt-3 sm:px-5 sm:pb-4 sm:pt-4 ${isDark ? "border-neutral-800" : "border-neutral-200"}`}>
+              <div className={`flex items-center gap-2 rounded-xl pl-4 pr-1.5 ring-1 transition-shadow focus-within:ring-2 focus-within:ring-neutral-400 ${isDark
+                ? "bg-neutral-800 ring-neutral-700"
+                : "bg-neutral-100 ring-neutral-200"}`}>
                 <input
                   ref={inputRef}
                   type="text"
@@ -268,16 +305,22 @@ function ChatApp() {
                   onKeyDown={handleKeyDown}
                   placeholder="Type your message..."
                   disabled={isLoading}
-                  className="flex-1 bg-transparent py-3 text-sm text-white placeholder-gray-500 outline-none disabled:opacity-50"
+                  className={`flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-neutral-400 disabled:opacity-50 ${isDark ? "text-neutral-100 placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"}`}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/25 transition-all disabled:opacity-40"
+                  aria-label="Send message"
+                  className={`group/send flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 ${isDark
+                    ? "bg-white text-neutral-900 hover:bg-neutral-100"
+                    : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-4 w-4 transition-transform group-hover/send:translate-x-0.5" />
                 </button>
               </div>
+              <p className={`mt-2 text-center text-[10px] ${isDark ? "text-neutral-500" : "text-neutral-400"}`}>
+                AI responses are generated live and may vary.
+              </p>
             </div>
           </div>
         </>
