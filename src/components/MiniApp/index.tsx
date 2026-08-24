@@ -91,10 +91,9 @@ function ChatApp() {
     ]);
 
     try {
-      const result = await sdk!.ai.chat(
-        [{ role: "user", content: trimmed }],
-        {},
-      );
+      const result = await sdk!.http.stream({
+        messages: [{ role: "user", content: trimmed }],
+      });
       const stream =
         typeof (result as { iterate?: () => AsyncIterable<string | Uint8Array> }).iterate === "function"
           ? (result as unknown as { iterate: () => AsyncIterable<string | Uint8Array> }).iterate()
@@ -260,7 +259,7 @@ function ChatApp() {
                   )}
                   <div className="group max-w-[80%]">
                     <div
-                      className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === "user"
+                      className={`whitespace-pre-wrap wrap-break-word rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === "user"
                         ? `rounded-br-md ${isDark ? "bg-white text-neutral-900" : "bg-neutral-900 text-white"}`
                         : `rounded-bl-md ${isDark ? "bg-neutral-800 text-neutral-100" : "bg-neutral-100 text-neutral-900"}`
                         }`}
@@ -273,7 +272,7 @@ function ChatApp() {
                           {isLoading &&
                             msg.role === "ai" &&
                             msg.id === lastMessage?.id && (
-                              <span className={`ml-0.5 inline-block h-4 w-[2px] animate-blink align-middle ${isDark ? "bg-neutral-100" : "bg-neutral-900"}`} />
+                              <span className={`ml-0.5 inline-block h-4 w-0.5 animate-blink align-middle ${isDark ? "bg-neutral-100" : "bg-neutral-900"}`} />
                             )}
                         </>
                       )}
