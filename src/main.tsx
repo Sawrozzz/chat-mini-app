@@ -12,7 +12,6 @@ export function mount(
   return {
     unmount() {
       root.unmount();
-
     },
   };
 }
