@@ -199,9 +199,9 @@ function ChatApp() {
 
   // ------------------------------------------------------------------
   return (
-    <div className={`flex min-h-dvh w-full items-center justify-center p-3 sm:p-6 ${isDark ? "bg-neutral-950" : "bg-neutral-100"}`}>
+    <>
       <div
-        className={`flex w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border shadow-xl backdrop-blur-xl ${isDark ? "border-neutral-800 bg-neutral-900 shadow-black/40" : "border-neutral-200 bg-white shadow-neutral-900/10"}`}
+        className={`bg-neutral-900 flex flex-col w-full`}
         style={{ height: "min(62dvh, 560px)" }}
       >
       {/* Header — GIC session via mini-app HTTP POST */}
@@ -328,6 +328,6 @@ function ChatApp() {
         </div>
       </div>
       </div>
-    </div>
+    </>
   );
 }
