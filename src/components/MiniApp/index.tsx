@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, Search, Send, Sparkles, User } from "lucide-react";
+import { Bot, Search, SendHorizonal, User } from "lucide-react";
 import { useAppearance } from "../../hooks/useAppearance"
 import { usePlatformSDK } from "../../hooks/usePlatformSDK"
 import { useGicChat } from "../../hooks/useGicChat"
@@ -61,9 +61,28 @@ function ChatApp() {
   const [gicStatus, setGicStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Typewriter state: the backend flushes all token frames in one burst after
+  // ~6s, so we queue received text and reveal it progressively for a
+  // streaming feel. Refs (not state) so interval ticks don't re-render.
+  const typewriterRef = useRef<{
+    queue: string;
+    displayed: string;
+    msgId: string | null;
+    timer: ReturnType<typeof setInterval> | null;
+    resolveDrain: (() => void) | null;
+  }>({ queue: "", displayed: "", msgId: null, timer: null, resolveDrain: null });
+
+  useEffect(() => () => {
+    const t = typewriterRef.current;
+    if (t.timer) clearInterval(t.timer);
+    t.timer = null;
+    t.resolveDrain = null;
+  }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // "auto" (not "smooth"): the typewriter updates ~55x/s and re-triggering
+    // a smooth scroll that often janks; instant follow stays glued to bottom.
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
   const handleSend = useCallback(async () => {
@@ -74,7 +93,7 @@ function ChatApp() {
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: new Date() },
-        { id: crypto.randomUUID(), role: "ai", content: "⚠️ Message must be ≤200 characters per GIC spec.", timestamp: new Date() },
+        { id: crypto.randomUUID(), role: "ai", content: "Message must be ≤200 characters per GIC spec.", timestamp: new Date() },
       ]);
       setInput("");
       return;
@@ -101,27 +120,109 @@ function ChatApp() {
 
     // GIC flow: mini-app initiated HTTP POST for session (sdk.gicChat.startSession → http.post via host proxy),
     // then streaming via GIC SSE (tool_call / token / meta / done / error)
+    //
+    // Typewriter setup: backend frames arrive in one burst, so tokens are
+    // queued here and revealed by the interval below (~110 chars/s).
+    const tw = typewriterRef.current;
+    if (tw.timer) clearInterval(tw.timer);
+    tw.queue = "";
+    tw.displayed = "";
+    tw.msgId = aiMsgId;
+    tw.resolveDrain = null;
+    let fullText = "";
+    let streamDone = false;
+    const drainPromise = new Promise<void>((resolve) => {
+      tw.resolveDrain = resolve;
+    });
+    const finishDrain = () => {
+      const t = typewriterRef.current;
+      if (t.timer) {
+        clearInterval(t.timer);
+        t.timer = null;
+      }
+      t.resolveDrain?.();
+      t.resolveDrain = null;
+    };
+    // Drain the queue with a typewriter reveal; snaps remainder on timeout.
+    const drainTypewriter = async () => {
+      streamDone = true;
+      if (reduceMotion) {
+        finishDrain();
+        return;
+      }
+      await Promise.race([drainPromise, new Promise((r) => setTimeout(r, 8000))]);
+      const t = typewriterRef.current;
+      if (t.queue) {
+        t.displayed += t.queue;
+        t.queue = "";
+        const content = t.displayed;
+        setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, content } : m)));
+      }
+      finishDrain();
+    };
+    // Drop pending animation on error (message content is set by caller).
+    const abortTypewriter = () => {
+      streamDone = true;
+      const t = typewriterRef.current;
+      if (t.timer) {
+        clearInterval(t.timer);
+        t.timer = null;
+      }
+      t.queue = "";
+      t.resolveDrain?.();
+      t.resolveDrain = null;
+    };
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Queue incoming text; revealed progressively unless reduced-motion.
+    const enqueueToken = (text: string) => {
+      if (!text) return;
+      fullText += text;
+      setGicStatus(null);
+      if (reduceMotion) {
+        const t = typewriterRef.current;
+        t.displayed += text;
+        const id = t.msgId;
+        const content = t.displayed;
+        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content } : m)));
+      } else {
+        typewriterRef.current.queue += text;
+      }
+    };
+
+    if (!reduceMotion) {
+      tw.timer = setInterval(() => {
+        const t = typewriterRef.current;
+        if (!t.queue) {
+          if (streamDone) finishDrain();
+          return;
+        }
+        // Adaptive pace: faster when a lot arrived at once.
+        const perTick = t.queue.length > 120 ? 4 : 2;
+        t.displayed += t.queue.slice(0, perTick);
+        t.queue = t.queue.slice(perTick);
+        const id = t.msgId;
+        const content = t.displayed;
+        setGicStatus(null);
+        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content } : m)));
+        if (!t.queue && streamDone) finishDrain();
+      }, 18);
+    }
+
     try {
       if (!gic.session && gic.status === "error") {
         await gic.startSession();
       }
 
-      let accumulated = "";
       let invocationId: string | undefined;
 
       await gic.sendMessage(trimmed, {
         onToolCall: () => setGicStatus("Searching knowledge base…"),
         onToolResult: () => setGicStatus("Composing response…"),
         onKeepAlive: () => setGicStatus("Composing response…"),
-        onToken: (text) => {
-          // Smooth typewriter: append token text char-by-char would be janky for SSE tokens,
-          // so we batch per token event with a short stagger
-          accumulated += text;
-          setGicStatus(null);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m)),
-          );
-        },
+        onToken: enqueueToken,
         onMeta: (id) => {
           invocationId = id;
         },
@@ -130,6 +231,11 @@ function ChatApp() {
           if (invocationId) console.log("[GIC] invocation_id:", invocationId);
         },
         onError: (detail) => {
+          // "not configured" falls through to the generic-chat fallback below,
+          // which reuses the running typewriter — don't tear it down here.
+          const lower = detail.toLowerCase();
+          if (lower.includes("not configured") || lower.includes("not_supported")) return;
+          abortTypewriter();
           setGicStatus(null);
           setMessages((prev) =>
             prev.map((m) =>
@@ -139,11 +245,15 @@ function ChatApp() {
         },
       });
 
+      // All frames received (usually in one burst) — play out the typewriter,
+      // then snap any remainder so nothing is lost.
+      await drainTypewriter();
+
       // If no tokens arrived but no error was surfaced, ensure we show something
       setMessages((prev) => {
         const target = prev.find((m) => m.id === aiMsgId);
         if (target && target.content === "") {
-          return prev.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated || "No response." } : m));
+          return prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullText || "No response." } : m));
         }
         return prev;
       });
@@ -159,24 +269,25 @@ function ChatApp() {
             typeof (result as { iterate?: () => AsyncIterable<string | Uint8Array> }).iterate === "function"
               ? (result as unknown as { iterate: () => AsyncIterable<string | Uint8Array> }).iterate()
               : (result as unknown as AsyncIterable<string | Uint8Array>);
-          let acc = "";
           for await (const chunk of stream) {
             const t = typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk as Uint8Array);
-            acc += t;
-            setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, content: acc } : m)));
+            enqueueToken(t);
           }
+          await drainTypewriter();
           setGicStatus(null);
           return;
         } catch (fallbackErr) {
+          abortTypewriter();
           const fm = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
           setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, content: `⚠️ ${fm}` } : m)));
         }
       } else if (!String(msg).includes("GIC stream error") || gic.error) {
         console.error("GIC stream error:", err);
+        abortTypewriter();
         // error already surfaced via onError; ensure placeholder not left empty
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === aiMsgId && m.content === "" ? { ...m, content: `⚠️ ${msg}` } : m,
+            m.id === aiMsgId && m.content === "" ? { ...m, content: fullText || `⚠️ ${msg}` } : m,
           ),
         );
       }
@@ -197,38 +308,12 @@ function ChatApp() {
 
   const lastMessage = messages[messages.length - 1];
 
-  // ------------------------------------------------------------------
   return (
     <>
       <div
-        className={`bg-neutral-900 flex flex-col w-full`}
-        style={{ height: "min(62dvh, 560px)" }}
+        className={`flex flex-col w-full ${isDark ? "bg-neutral-900" : "bg-neutral-50"}`}
+        style={{ height: "min(62dvh, 536px)" }}
       >
-      {/* Header — GIC session via mini-app HTTP POST */}
-      <header className={`flex shrink-0 items-center gap-3 border-b px-5 py-4 ${isDark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-white"}`}>
-        <div className={`relative flex h-10 w-10 items-center justify-center rounded-xl ${isDark
-          ? "bg-neutral-800 text-neutral-100"
-          : "bg-neutral-100 text-neutral-900"}`}>
-          <Sparkles className="h-5 w-5" />
-          <span className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full ring-2 ${isDark ? "ring-neutral-900" : "ring-white"} ${isLoading ? "animate-pulse bg-amber-500" : gic.session ? "bg-emerald-500" : "bg-amber-500"}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className={`text-sm font-semibold ${isDark ? "text-neutral-100" : "text-neutral-900"}`}>
-            GIC Assistant
-          </h2>
-          <div className="flex items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 rounded-full ${isLoading ? "animate-pulse bg-amber-500" : gic.session ? "bg-emerald-500" : "bg-amber-500"}`} />
-            <span className={`text-xs truncate ${isDark ? "text-neutral-500" : "text-neutral-500"}`}>
-              {isLoading ? (gicStatus ?? "Thinking...") : gic.session ? `Session ${gic.session.session_id.slice(0, 8)}…` : gic.status === "starting" ? "Starting session (HTTP POST)…" : "Connecting…"}
-            </span>
-          </div>
-        </div>
-        {gic.error && (
-          <span className={`hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium ${isDark ? "bg-red-950 text-red-300 ring-1 ring-red-900" : "bg-red-50 text-red-600 ring-1 ring-red-200"}`} title={gic.error}>
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Session error
-          </span>
-        )}
-      </header>
       {(gicStatus === "Searching knowledge base…" || gic.status === "searching") && (
         <div className={`flex items-center gap-2 border-b px-5 py-2 text-xs ${isDark ? "border-neutral-800 bg-neutral-900 text-neutral-400" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
           <Search className="h-3.5 w-3.5 animate-pulse" />
@@ -260,7 +345,7 @@ function ChatApp() {
             <div className="group max-w-[80%]">
               <div
                 className={`whitespace-pre-wrap wrap-break-word rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === "user"
-                  ? `rounded-br-md ${isDark ? "bg-white text-neutral-900" : "bg-neutral-900 text-white"}`
+                   ? `rounded-br-md ${isDark ? "bg-white text-neutral-900" : "bg-neutral-400/90 text-neutral-900"}`
                   : `rounded-bl-md ${isDark ? "bg-neutral-800 text-neutral-100" : "bg-neutral-100 text-neutral-900"}`
                   }`}
               >
@@ -290,19 +375,17 @@ function ChatApp() {
         ))}
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Input — ≤200 chars per GIC spec */}
-      <div className={`shrink-0 border-t px-4 pb-3 pt-3 sm:px-5 sm:pb-4 sm:pt-4 ${isDark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-white"}`}>
+      <div className={`shrink-0 border-t px-4 pb-3 pt-3 sm:px-5 sm:pb-4 sm:pt-4 ${isDark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-neutral-100"}`}>
         <div className={`flex items-center gap-2 rounded-xl pl-4 pr-1.5 ring-1 transition-shadow focus-within:ring-2 focus-within:ring-neutral-400 ${isDark
-          ? "bg-neutral-800 ring-neutral-700"
-          : "bg-neutral-100 ring-neutral-200"}`}>
+          ? " ring-neutral-700"
+          : "ring-neutral-200"}`}>
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about National ID, GIC services… (≤200 chars)"
+            placeholder="Ask about National ID, GIC services…"
             disabled={isLoading}
             maxLength={200}
             className={`flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-neutral-400 disabled:opacity-50 ${isDark ? "text-neutral-100 placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"}`}
@@ -311,20 +394,12 @@ function ChatApp() {
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             aria-label="Send message"
-            className={`group/send flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 ${isDark
-              ? "bg-white text-neutral-900 hover:bg-neutral-100"
-              : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
+            className={`group/send flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-40 ${isDark
+              ? "bg-[#dc9a0d] text-neutral-900 hover:bg-[#e3ab38] active:bg-[#c98e0a]"
+              : "bg-[#dc9a0d] text-white hover:bg-[#e3ab38] active:bg-[#c98e0a]"}`}
           >
-            <Send className="h-4 w-4 transition-transform group-hover/send:translate-x-0.5" />
+            <SendHorizonal className="h-4 w-4" />
           </button>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          <p className={`text-[10px] ${isDark ? "text-neutral-500" : "text-neutral-400"}`}>
-            Mini-app POST → host proxies to GIC · SSE stream (tool_call → token → done)
-          </p>
-          <span className={`text-[10px] tabular-nums ${input.length > 180 ? "text-amber-500" : isDark ? "text-neutral-500" : "text-neutral-400"}`}>
-            {input.length}/200
-          </span>
         </div>
       </div>
       </div>
