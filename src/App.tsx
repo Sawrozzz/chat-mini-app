@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router";
-import TestMiniApp from "./components/MiniApp";
+import ChatApp from "./chat";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlatformSDKProvider } from "./providers/SdkProvider"
 import { toRoutePath } from "./routes"
@@ -16,7 +16,7 @@ export default function App({ initialPath }: { initialPath?: string }) {
     <ErrorBoundary>
       <MemoryRouter initialEntries={[resolveInitialEntry(initialPath)]}>
         <PlatformSDKProvider>
-          <TestMiniApp />
+          <ChatApp />
         </PlatformSDKProvider>
       </MemoryRouter>
     </ErrorBoundary>

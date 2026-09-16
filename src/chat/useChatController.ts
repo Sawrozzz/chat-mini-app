@@ -1,53 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, Search, SendHorizonal, User } from "lucide-react";
-import { useAppearance } from "../../hooks/useAppearance"
-import { usePlatformSDK } from "../../hooks/usePlatformSDK"
-import { useGicChat } from "../../hooks/useGicChat"
+import { usePlatformSDK } from "../hooks/usePlatformSDK";
+import { useGicChat } from "../hooks/useGicChat";
+import type { ChatMessage } from "./types";
 
-
-// const MODULE_ID = "chat-mini-app";
-
-interface Message {
-  id: string;
-  role: "user" | "ai";
-  content: string;
-  timestamp?: Date;
-}
-
-
-export default function TestMiniApp() {
-
-  return (
-    <ChatApp />
-  )
-}
-
-function TypingIndicator({ isDark }: { isDark: boolean }) {
-  return (
-    <span className="flex items-center gap-2 py-0.5">
-      <span className="flex items-center gap-1">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className={`h-1.5 w-1.5 animate-typing-bounce rounded-full ${isDark ? "bg-neutral-400" : "bg-neutral-500"}`}
-            style={{ animationDelay: `${i * 160}ms` }}
-          />
-        ))}
-      </span>
-      <span className={`text-xs font-medium ${isDark ? "text-neutral-500" : "text-neutral-500"}`}>
-        Thinking
-      </span>
-    </span>
-  );
-}
-
-function ChatApp() {
-
+export function useChatController() {
   const { sdk } = usePlatformSDK();
-  const { theme } = useAppearance();
   const gic = useGicChat();
 
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
       role: "ai",
@@ -61,9 +21,7 @@ function ChatApp() {
   const [gicStatus, setGicStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Typewriter state: the backend flushes all token frames in one burst after
-  // ~6s, so we queue received text and reveal it progressively for a
-  // streaming feel. Refs (not state) so interval ticks don't re-render.
+
   const typewriterRef = useRef<{
     queue: string;
     displayed: string;
@@ -99,7 +57,7 @@ function ChatApp() {
       return;
     }
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
@@ -109,7 +67,7 @@ function ChatApp() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
-    setGicStatus(gic.session ? null : "Starting session via HTTP POST…");
+    setGicStatus(gic.session ? null : "Starting session…");
 
     const aiMsgId = crypto.randomUUID();
 
@@ -118,8 +76,9 @@ function ChatApp() {
       { id: aiMsgId, role: "ai", content: "", timestamp: new Date() },
     ]);
 
-    // GIC flow: mini-app initiated HTTP POST for session (sdk.gicChat.startSession → http.post via host proxy),
-    // then streaming via GIC SSE (tool_call / token / meta / done / error)
+    // Endpoint-free GIC flow: session + STREAM both go through api.request
+    // (host owns endpoint mapping), streaming GIC SSE
+    // (tool_call / token / meta / done / error)
     //
     // Typewriter setup: backend frames arrive in one burst, so tokens are
     // queued here and revealed by the interval below (~110 chars/s).
@@ -264,7 +223,12 @@ function ChatApp() {
       if (isNotConfigured && sdk) {
         try {
           setGicStatus("GIC not configured — falling back to generic chat…");
-          const result = await sdk.http.stream({ messages: [{ role: "user", content: trimmed }] });
+          // Endpoint-free generic chat — `channel` omitted so the host
+          // applies its `generic` default. No URLs in the mini app.
+          const result = await sdk.api.request({
+            method: "STREAM",
+            body: { messages: [{ role: "user", content: trimmed }] },
+          } as unknown as Parameters<typeof sdk.api.request>[0]);
           const stream =
             typeof (result as { iterate?: () => AsyncIterable<string | Uint8Array> }).iterate === "function"
               ? (result as unknown as { iterate: () => AsyncIterable<string | Uint8Array> }).iterate()
@@ -304,105 +268,16 @@ function ChatApp() {
     }
   };
 
-  const isDark = theme.mode === 'dark';
-
-  const lastMessage = messages[messages.length - 1];
-
-  return (
-    <>
-      <div
-        className={`flex flex-col w-full ${isDark ? "bg-neutral-900" : "bg-neutral-50"}`}
-        style={{ height: "min(62dvh, 536px)" }}
-      >
-      {(gicStatus === "Searching knowledge base…" || gic.status === "searching") && (
-        <div className={`flex items-center gap-2 border-b px-5 py-2 text-xs ${isDark ? "border-neutral-800 bg-neutral-900 text-neutral-400" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
-          <Search className="h-3.5 w-3.5 animate-pulse" />
-          <span>Searching knowledge base…</span>
-          <span className={`ml-auto text-[10px] ${isDark ? "text-neutral-500" : "text-neutral-400"}`}>tool_call → tool_result</span>
-        </div>
-      )}
-
-      {/* Messages */}
-      <div className="chat-scroll flex-1 space-y-5 overflow-y-auto px-5 py-5 scroll-smooth">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex items-end gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"} animate-fade-in`}
-          >
-            {msg.role === "ai" ? (
-              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isDark
-                ? "bg-neutral-800 text-neutral-400"
-                : "bg-neutral-200 text-neutral-500"}`}>
-                <Bot className="h-4 w-4" />
-              </div>
-            ) : (
-              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isDark
-                ? "bg-white text-neutral-900"
-                : "bg-neutral-900 text-white"}`}>
-                <User className="h-4 w-4" />
-              </div>
-            )}
-            <div className="group max-w-[80%]">
-              <div
-                className={`whitespace-pre-wrap wrap-break-word rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === "user"
-                   ? `rounded-br-md ${isDark ? "bg-white text-neutral-900" : "bg-neutral-400/90 text-neutral-900"}`
-                  : `rounded-bl-md ${isDark ? "bg-neutral-800 text-neutral-100" : "bg-neutral-100 text-neutral-900"}`
-                  }`}
-              >
-                {isLoading && msg.role === "ai" && msg.content === "" && msg.id === lastMessage?.id ? (
-                  <TypingIndicator isDark={isDark} />
-                ) : (
-                  <>
-                    {msg.content}
-                    {isLoading &&
-                      msg.role === "ai" &&
-                      msg.id === lastMessage?.id && (
-                        <span className={`ml-0.5 inline-block h-4 w-0.5 animate-blink align-middle ${isDark ? "bg-neutral-100" : "bg-neutral-900"}`} />
-                      )}
-                  </>
-                )}
-              </div>
-              <p
-                className={`mt-1 text-[10px] ${msg.role === "user" ? "text-right" : "text-left"} ${isDark ? "text-neutral-500" : "text-neutral-400"}`}
-              >
-                {msg.timestamp?.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-      <div className={`shrink-0 border-t px-4 pb-3 pt-3 sm:px-5 sm:pb-4 sm:pt-4 ${isDark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-neutral-100"}`}>
-        <div className={`flex items-center gap-2 rounded-xl pl-4 pr-1.5 ring-1 transition-shadow focus-within:ring-2 focus-within:ring-neutral-400 ${isDark
-          ? " ring-neutral-700"
-          : "ring-neutral-200"}`}>
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about National ID, GIC services…"
-            disabled={isLoading}
-            maxLength={200}
-            className={`flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-neutral-400 disabled:opacity-50 ${isDark ? "text-neutral-100 placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"}`}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            aria-label="Send message"
-            className={`group/send flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-40 ${isDark
-              ? "bg-[#dc9a0d] text-neutral-900 hover:bg-[#e3ab38] active:bg-[#c98e0a]"
-              : "bg-[#dc9a0d] text-white hover:bg-[#e3ab38] active:bg-[#c98e0a]"}`}
-          >
-            <SendHorizonal className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-      </div>
-    </>
-  );
+  return {
+    messages,
+    input,
+    setInput,
+    isLoading,
+    gicStatus,
+    gicState: gic.status,
+    messagesEndRef,
+    inputRef,
+    handleSend,
+    handleKeyDown,
+  };
 }
