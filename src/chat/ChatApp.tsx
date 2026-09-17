@@ -13,6 +13,10 @@ export default function ChatApp() {
     isLoading,
     gicStatus,
     gicState,
+    voiceError,
+    isRecording,
+    recordingMs,
+    handleMicToggle,
     messagesEndRef,
     inputRef,
     handleSend,
@@ -29,6 +33,12 @@ export default function ChatApp() {
     >
       <ChatStatusBar isDark={isDark} visible={showSearching} />
 
+      {voiceError && (
+        <p className={`shrink-0 px-5 pt-2 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>
+          {voiceError}
+        </p>
+      )}
+
       <ChatMessageList
         messages={messages}
         isDark={isDark}
@@ -44,6 +54,9 @@ export default function ChatApp() {
         isLoading={isLoading}
         isDark={isDark}
         inputRef={inputRef}
+        isRecording={isRecording}
+        recordingMs={recordingMs}
+        onMicToggle={handleMicToggle}
       />
     </div>
   );

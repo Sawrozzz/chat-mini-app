@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePlatformSDK } from "./usePlatformSDK";
+import { getEnv } from "../env";
 
 export type GicStatus = "idle" | "starting" | "ready" | "searching" | "composing" | "error";
 
-/**
- * Endpoint-free GIC chat over `api.request`.
- *
- * - Session (on load): unary `api.request({ method: "POST",
- *   body: { action: "session.start", channel: "gic" } })` — the host maps to
- *   its own session endpoint (`/api/mock/session`). No URLs in the mini app.
- * - Chat: `api.request({ method: "STREAM",
- *   body: { channel: "gic", user_id, session_id, message },
- *   stream: { signal } })` — the host maps to its own stream endpoint and
- *   bridges SSE events back as JSON-stringified `GicChatEvent` chunks.
- */
 type StreamBuilderLike = {
   iterate: () => AsyncIterable<string | Uint8Array>;
   waitUntilDone: () => Promise<void>;
@@ -24,7 +14,7 @@ function toStreamBuilder(result: unknown): StreamBuilderLike {
     iterate?: () => AsyncIterable<string | Uint8Array>;
   };
   if (r && typeof r.iterate === "function") return r as StreamBuilderLike;
-  // Already an async iterable (older SDK shape) — wrap it.
+  
   const iterable = result as AsyncIterable<string | Uint8Array>;
   return {
     iterate: () => iterable,
@@ -39,8 +29,6 @@ function toStreamBuilder(result: unknown): StreamBuilderLike {
 
 function normalizeSession(data: unknown): SdkGicChatSession {
   const root = (data ?? {}) as Record<string, unknown>;
-  // Host may return the flat GIC shape, camelCase, or the mock envelope
-  // `{ data: { userId, sessionId } }`.
   const nested =
     root.data && typeof root.data === "object"
       ? (root.data as Record<string, unknown>)
@@ -78,10 +66,11 @@ export function useGicChat() {
     setStatus("starting");
     setError(null);
     try {
-      // Endpoint-free: host resolves the session endpoint internally.
       const res = await sdk.api.request({
-        method: "POST",
-        body: { action: "session.start", channel: "gic" },
+        endpoint: getEnv('VITE_START_CHAT_SESSION_ROUTE'),
+        headers: {
+          "x-mini-app-id": sdk.miniAppId
+        }
       } as unknown as Parameters<typeof sdk.api.request>[0]);
       const s = normalizeSession(
         (res as { data?: unknown })?.data ?? res,
@@ -112,6 +101,7 @@ export function useGicChat() {
         onToolResult?: () => void;
         onKeepAlive?: () => void;
         onMeta?: (invocationId: string) => void;
+        onAudio?: (url: string, mimeType?: string) => void;
         onDone?: () => void;
         onError?: (detail: string) => void;
       } = {},
@@ -129,12 +119,14 @@ export function useGicChat() {
       setStatus("composing");
 
       try {
-        // Endpoint-free STREAM — host routes `channel: "gic"` to the GIC
-        // stream and bridges each SSE event back as a stream chunk.
         const raw = await sdk.api.request({
-          method: "STREAM",
-          body: { channel: "gic", user_id: s.user_id, session_id: s.session_id, message },
-          stream: { signal: controller.signal },
+          endpoint: getEnv('VITE_CHAT_STREAM_ROUTE'),
+          headers: {
+            "x-mini-app-id": sdk.miniAppId
+          },
+          body: { user_id: s.user_id, session_id: s.session_id, message },
+          stream: true,
+          signal: controller.signal,
         } as unknown as Parameters<typeof sdk.api.request>[0]);
         const builder = toStreamBuilder(raw as unknown);
 
@@ -174,6 +166,13 @@ export function useGicChat() {
               }
               break;
             }
+            case "audio": {
+              const url =
+                (event as { url?: string }).url ?? (event as { data?: string }).data;
+              const mimeType = (event as { mimeType?: string }).mimeType;
+              if (url) handlers.onAudio?.(url, mimeType);
+              break;
+            }
             case "done":
               setStatus("ready");
               handlers.onDone?.();
@@ -200,7 +199,6 @@ export function useGicChat() {
           return {};
         }
         const msg = e instanceof Error ? e.message : String(e);
-        // 404 session expired → clear and allow retry
         if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("expired")) {
           setSession(null);
         }

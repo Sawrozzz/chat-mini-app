@@ -5,18 +5,17 @@ import type {
   ModelCompletionOptions,
   StreamChunk,
   StreamError,
+} from '@lizuz/mini-app-types';
+import type {
   GicChatSession,
   GicChatEvent,
   GicChatStreamRequest,
-} from '@lizuz/mini-app-types';
+} from './gic/types';
 
 
 declare global {
   type MiniAppSdk = MiniAppSdkInterface;
   type SdkPlatformUser = PlatformUser;
-  type SdkChatMessage = ChatMessage;
-  type SdkModelCompletionOptions = ModelCompletionOptions;
-  type SdkStreamChunk = StreamChunk;
   type SdkStreamError = StreamError
   type SdkGicChatSession = GicChatSession;
   type SdkGicChatEvent = GicChatEvent;

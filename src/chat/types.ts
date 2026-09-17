@@ -1,6 +1,8 @@
 export interface ChatMessage {
   id: string;
-  role: "user" | "ai";
+  role: "user" | "gicChat";
   content: string;
   timestamp?: Date;
+  audioUrl?: string;
+  audioMimeType?: string;
 }
