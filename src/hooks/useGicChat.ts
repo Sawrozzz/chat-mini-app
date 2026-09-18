@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePlatformSDK } from "./usePlatformSDK";
 import { getEnv } from "../env";
+import { apiRequest } from "../utils/api";
 
 export type GicStatus = "idle" | "starting" | "ready" | "searching" | "composing" | "error";
 
@@ -66,12 +67,12 @@ export function useGicChat() {
     setStatus("starting");
     setError(null);
     try {
-      const res = await sdk.api.request({
+      const res = (await apiRequest(sdk, "POST", {
         endpoint: getEnv('VITE_START_CHAT_SESSION_ROUTE'),
         headers: {
           "x-mini-app-id": sdk.miniAppId
         }
-      } as unknown as Parameters<typeof sdk.api.request>[0]);
+      })) as { data?: unknown };
       const s = normalizeSession(
         (res as { data?: unknown })?.data ?? res,
       );
@@ -119,7 +120,7 @@ export function useGicChat() {
       setStatus("composing");
 
       try {
-        const raw = await sdk.api.request({
+        const raw = await apiRequest(sdk, "POST", {
           endpoint: getEnv('VITE_CHAT_STREAM_ROUTE'),
           headers: {
             "x-mini-app-id": sdk.miniAppId
@@ -127,7 +128,7 @@ export function useGicChat() {
           body: { user_id: s.user_id, session_id: s.session_id, message },
           stream: true,
           signal: controller.signal,
-        } as unknown as Parameters<typeof sdk.api.request>[0]);
+        });
         const builder = toStreamBuilder(raw as unknown);
 
         let invocationId: string | undefined;

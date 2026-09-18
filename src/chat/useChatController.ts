@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePlatformSDK } from "../hooks/usePlatformSDK";
 import { useGicChat } from "../hooks/useGicChat";
+import { apiRequest } from "../utils/api";
 import { useVoiceRecorder } from "../voice/useVoiceRecorder";
 import { isTranscriptionSupported, startTranscription } from "../voice/speech";
 import type { ChatMessage } from "./types";
@@ -114,12 +115,11 @@ export function useChatController() {
         if (isNotConfigured && sdk) {
           try {
             setGicStatus("GIC not configured - falling back to generic chat…");
-            const result = await sdk.api.request({
-              method: "POST",
+            const result = await apiRequest(sdk, "POST", {
               endpoint: "/",
               body: { messages: [{ role: "user", content: trimmed }] },
               stream: true,
-            } as unknown as Parameters<typeof sdk.api.request>[0]);
+            });
             const stream =
               typeof (result as { iterate?: () => AsyncIterable<string | Uint8Array> }).iterate === "function"
                 ? (result as unknown as { iterate: () => AsyncIterable<string | Uint8Array> }).iterate()
