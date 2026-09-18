@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@lizuz/mini-app-types": "link:../../mini-app-types",
+    "@lizuz/mini-app-types": "^1.1.2",
     "@rolldown/plugin-babel": "^0.2.3",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
