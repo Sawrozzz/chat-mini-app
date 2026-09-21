@@ -116,7 +116,7 @@ export function useChatController() {
           try {
             setGicStatus("GIC not configured - falling back to generic chat…");
             const result = await apiRequest(sdk, "POST", {
-              endpoint: "/",
+              path: "/",
               body: { messages: [{ role: "user", content: trimmed }] },
               stream: true,
             });

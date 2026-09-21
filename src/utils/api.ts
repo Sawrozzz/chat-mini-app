@@ -6,7 +6,7 @@
  * types package catches up.
  */
 export interface ApiParams {
-  endpoint?: string;
+  path?: string;
   query?: Record<string, string>;
   body?: unknown;
   headers?: Record<string, string>;

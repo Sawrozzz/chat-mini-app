@@ -28,6 +28,30 @@ function toStreamBuilder(result: unknown): StreamBuilderLike {
   };
 }
 
+/** One parsed SSE frame from the shared SDK parser (`sdk.stream.parseSseStream`). */
+interface SseEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+type ParseSseStream = (
+  chunks: AsyncIterable<string | Uint8Array>,
+) => AsyncGenerator<SseEvent>;
+
+/**
+ * Resolves the shared SSE parser from the host-injected SDK instance. The
+ * host forwards BFF bytes verbatim, so all framing interpretation lives in
+ * the SDK (`@lizuz/sewa-sdk >= 1.1.0`) — shared by every host platform.
+ */
+function getSseParser(sdk: MiniAppSdk): ParseSseStream {
+  const parse = (sdk as unknown as { stream?: { parseSseStream?: unknown } }).stream
+    ?.parseSseStream;
+  if (typeof parse !== "function") {
+    throw new Error("Host SDK too old — stream.parseSseStream missing (need @lizuz/sewa-sdk >= 1.1.0)");
+  }
+  return parse as ParseSseStream;
+}
+
 function normalizeSession(data: unknown): SdkGicChatSession {
   const root = (data ?? {}) as Record<string, unknown>;
   const nested =
@@ -68,7 +92,7 @@ export function useGicChat() {
     setError(null);
     try {
       const res = (await apiRequest(sdk, "POST", {
-        endpoint: getEnv('VITE_START_CHAT_SESSION_ROUTE'),
+        path: getEnv('VITE_START_CHAT_SESSION_ROUTE') ?? "/chat/session",
         headers: {
           "x-mini-app-id": sdk.miniAppId
         }
@@ -121,7 +145,7 @@ export function useGicChat() {
 
       try {
         const raw = await apiRequest(sdk, "POST", {
-          endpoint: getEnv('VITE_CHAT_STREAM_ROUTE'),
+          path: getEnv('VITE_CHAT_STREAM_ROUTE') ?? "/chat/stream",
           headers: {
             "x-mini-app-id": sdk.miniAppId
           },
@@ -130,18 +154,13 @@ export function useGicChat() {
           signal: controller.signal,
         });
         const builder = toStreamBuilder(raw as unknown);
+        const parseSse = getSseParser(sdk);
 
         let invocationId: string | undefined;
         let done = false;
-        for await (const chunk of builder.iterate()) {
-          const text = typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
-          if (!text) continue;
-          let event: SdkGicChatEvent;
-          try {
-            event = JSON.parse(text) as SdkGicChatEvent;
-          } catch {
-            continue;
-          }
+        let sawEvent = false;
+        for await (const event of parseSse(builder.iterate())) {
+          sawEvent = true;
           switch (event.type) {
             case "tool_call":
               setStatus("searching");
@@ -192,6 +211,15 @@ export function useGicChat() {
           if (done) break;
         }
         await builder.waitUntilDone().catch(() => {});
+        if (!sawEvent) {
+          // Dumb host forwarded a body the SSE parser yielded nothing from
+          // (e.g. a raw BFF error payload) — surface it instead of "No response."
+          const detail = "Empty stream response from host";
+          setError(detail);
+          setStatus("error");
+          handlers.onError?.(detail);
+          return { invocation_id: invocationId };
+        }
         setStatus("ready");
         return { invocation_id: invocationId };
       } catch (e) {
