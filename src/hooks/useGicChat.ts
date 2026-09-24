@@ -149,7 +149,7 @@ export function useGicChat() {
           headers: {
             "x-mini-app-id": sdk.miniAppId
           },
-          body: { user_id: s.user_id, session_id: s.session_id, message },
+          body: { userId: s.user_id, sessionId: s.session_id, message },
           stream: true,
           signal: controller.signal,
         });

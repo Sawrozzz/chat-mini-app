@@ -28,9 +28,7 @@ export default function ChatApp() {
 
   return (
     <div
-      className={`flex flex-col w-full ${isDark ? "bg-neutral-900" : "bg-neutral-50"}`}
-      style={{ height: "min(62dvh, 536px)" }}
-    >
+      className={`flex flex-col w-full h-full ${isDark ? "bg-neutral-900" : "bg-neutral-50"}`}>
       <ChatStatusBar isDark={isDark} visible={showSearching} />
 
       {voiceError && (
