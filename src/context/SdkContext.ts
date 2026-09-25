@@ -1,7 +1,7 @@
 import { createContext } from "react";
 
 export interface SDKContextValue {
-  sdk: MiniAppSdk | null;
+  sdk: SewaPlatformSdk | null;
   user: SdkPlatformUser | null;
   isReady: boolean;
   error: Error | null;

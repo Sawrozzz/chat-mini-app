@@ -6,11 +6,11 @@ import { useHostRouter } from "../hooks/useHostRouter";
 
 type State =
   | { phase: "loading" }
-  | { phase: "ready"; sdk: MiniAppSdk; user: SdkPlatformUser | null }
+  | { phase: "ready"; sdk: SewaPlatformSdk; user: SdkPlatformUser | null }
   | { phase: "error"; error: Error };
 
 type Action =
-  | { type: "ready"; sdk: MiniAppSdk; user: SdkPlatformUser | null }
+  | { type: "ready"; sdk: SewaPlatformSdk; user: SdkPlatformUser | null }
   | { type: "error"; error: Error };
 
 function reducer(_state: State, action: Action): State {
@@ -23,7 +23,7 @@ function reducer(_state: State, action: Action): State {
 }
 
 function getSDK() {
-  const instance = window.__GSA_SDK__ ?? null;
+  const instance = window.__SEWA_SDK__ ?? null;
   if (!instance) throw new Error("SDK not available");
   return instance;
 }

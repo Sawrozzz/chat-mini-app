@@ -1,11 +1,11 @@
 import type {
-  MiniAppSdkInterface,
+  SewaPlatformSdkInterface,
   PlatformUser,
   ChatMessage,
   ModelCompletionOptions,
   StreamChunk,
   StreamError,
-} from '@lizuz/mini-app-types';
+} from 'sewa-platform-types';
 import type {
   GicChatSession,
   GicChatEvent,
@@ -14,7 +14,7 @@ import type {
 
 
 declare global {
-  type MiniAppSdk = MiniAppSdkInterface;
+  type SewaPlatformSdk = SewaPlatformSdkInterface;
   type SdkPlatformUser = PlatformUser;
   type SdkStreamError = StreamError
   type SdkGicChatSession = GicChatSession;
@@ -22,7 +22,7 @@ declare global {
   type SdkGicChatStreamRequest = GicChatStreamRequest;
 
   interface Window {
-    __GSA_SDK__?: MiniAppSdk;
+    __SEWA_SDK__?: SewaPlatformSdk;
   }
 }
 

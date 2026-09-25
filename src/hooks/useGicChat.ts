@@ -43,7 +43,7 @@ type ParseSseStream = (
  * host forwards BFF bytes verbatim, so all framing interpretation lives in
  * the SDK (`@lizuz/sewa-sdk >= 1.1.0`) — shared by every host platform.
  */
-function getSseParser(sdk: MiniAppSdk): ParseSseStream {
+function getSseParser(sdk: SewaPlatformSdk): ParseSseStream {
   const parse = (sdk as unknown as { stream?: { parseSseStream?: unknown } }).stream
     ?.parseSseStream;
   if (typeof parse !== "function") {

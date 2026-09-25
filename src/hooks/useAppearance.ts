@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePlatformSDK } from "./usePlatformSDK";
-import type { AppearanceState, LocaleState, ThemeState } from "@lizuz/mini-app-types";
+import type { AppearanceState, LocaleState, ThemeState } from "sewa-platform-types";
 
 const DEFAULT_STATE: AppearanceState = {
   locale: { locale: "en-LK", language: "en", direction: "ltr" },

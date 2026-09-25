@@ -27,7 +27,7 @@ type RequestFn = {
 };
 
 export function apiRequest(
-  sdk: MiniAppSdk,
+  sdk: SewaPlatformSdk,
   method: string | undefined,
   params: ApiParams,
 ): Promise<unknown> {

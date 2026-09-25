@@ -1,2 +1,2 @@
 minimumReleaseAgeExclude:
-  - '@lizuz/mini-app-types@1.0.17 || 1.1.3'
+  - 'sewa-platform-types@1.0.17 || 1.1.3'
