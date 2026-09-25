@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { Mic, SendHorizonal, Square } from "lucide-react";
+import { SendHorizonal } from "lucide-react";
 import { formatElapsed } from "../voice/useVoiceRecorder";
 
 interface ChatInputProps {
@@ -25,7 +25,6 @@ export function ChatInput({
   inputRef,
   isRecording,
   recordingMs,
-  onMicToggle,
 }: ChatInputProps) {
   return (
     <div
@@ -51,7 +50,7 @@ export function ChatInput({
             {formatElapsed(recordingMs)}
           </span>
         )}
-        <button
+        {/* <button
           onClick={onMicToggle}
           disabled={isLoading}
           aria-label={isRecording ? "Stop recording" : "Record voice message"}
@@ -63,7 +62,7 @@ export function ChatInput({
             }`}
         >
           {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
+        </button> */}
         <button
           onClick={onSend}
           disabled={!value.trim() || isLoading || isRecording}
